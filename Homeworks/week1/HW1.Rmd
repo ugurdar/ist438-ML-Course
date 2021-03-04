@@ -1,0 +1,222 @@
+---
+title: "İST438 - HW - Week 1"
+author: "Uğur DAR"
+date: "01 03 2021"
+output:
+  pdf_document:
+    toc: true
+    fig_caption: yes
+---
+
+```{r include=FALSE}
+setwd("C:/Users/gr/Desktop/T/Dersler/İstatistik/ML/Homeworks/week1")
+```
+
+![(https://rajivsworklife.files.wordpress.com/2018/02/boston.jpg?w=675&h=448)](bostonhousing.jpeg){#id .class width=500 height=400px}
+
+
+# Boston Housing Data
+
+Housing data for 506 census tracts of Boston from the 1970 census. The dataframe BostonHousing contains the original data by Harrison and Rubinfeld (1979), the dataframe BostonHousing2 the corrected version with additional spatial information.
+
+
+\newpage
+
+## Packages Importing
+
+```{r message=FALSE, warning=FALSE}
+# install.packages("mlbench") # Installing the package for the data.
+library(mlbench) # Importing the package.
+library(dplyr) # For glimpse function.
+library(ggplot2)
+library(purrr)
+library(tidyr)
+library(e1071) # For skewness and kurtosis functions
+#knitr::opts_chunk$set(echo = FALSE)
+library(knitr)  # For tables
+library(kableExtra) # For tables
+library(ggpubr)
+library(corrplot)
+library(RColorBrewer)
+```
+
+```{r}
+data(BostonHousing) # Calling the data from mlbench
+```
+ 
+```{r}
+?BostonHousing # For data description
+```
+
+## Features
+
+The original data are 506 observations on 14 variables, medv being the target variable:
+
+- crim	per capita crime rate by town
+- zn	proportion of residential land zoned for lots over 25,000 sq.ft
+- indus	proportion of non-retail business acres per town
+- chas	Charles River dummy variable (= 1 if tract bounds river; 0 otherwise)
+- nox	nitric oxides concentration (parts per 10 million)
+- rm	average number of rooms per dwelling
+- age	proportion of owner-occupied units built prior to 1940
+- dis	weighted distances to five Boston employment centres
+- rad	index of accessibility to radial highways
+- tax	full-value property-tax rate per USD 10,000
+- ptratio	pupil-teacher ratio by town
+- b	1000(B - 0.63)^2 where B is the proportion of blacks by town
+- lstat	percentage of lower status of the population
+- medv	median value of owner-occupied homes in USD 1000's
+
+ The corrected data set has the following additional columns:
+- cmedv	corrected median value of owner-occupied homes in USD 1000's
+- town	name of town
+- tract	census tract
+- lon	longitude of census tract
+- lat	latitude of census tract
+
+\newpage
+
+## Structure of The Boston Housing Data
+
+```{r}
+glimpse(BostonHousing)
+```
+
+Data has 13 features, 1 target which is **medv**, 506 instances. Target variable is continues, 12 features are numeric, 1 feature (**chas**) is categorical. Also **rad** feature is discrete, other numeric features are continues.
+
+## Exploratory Data Analysis 
+
+
+### Missing Values
+
+```{r}
+anyNA(BostonHousing)
+```
+Boston data hasn't missing value.
+
+### Summary Statistics
+
+```{r}
+sumStats <- function(x){   # An alternative summary function,
+  sum <- sum(x)            # I added sum, mean, variance, skewness, kurtosis statistics.
+  min <- min(x)
+  max <- max(x)
+  mean <- mean(x)
+  q1 <- quantile(x,0.25);median <- median(x);q3 <- quantile(x,0.75)
+  var <- var(x)
+  skew <- skewness(x)
+  kurt <- kurtosis(x)
+  df <- data.frame(Sum = sum, Min = min, Max = max, Mean=mean, Q1=q1, Median = median,
+                   Q3=q3, Variance = var, Skewness = skew, Kurtosis = kurt)
+  df <- round(df,4)
+}
+
+```
+
+\newpage
+
+
+
+```{r}
+summaries <- sapply(BostonHousing %>% select(where(is.numeric)), sumStats) 
+summaries <- as.data.frame(summaries)
+```
+
+
+```{r}
+kable(summaries[,1:6], format="latex", booktabs=TRUE,
+      caption = "Summary Statistics of Boston Housing Data") # Table 1
+```
+
+
+```{r}
+kable(summaries[,7:13], format="latex", booktabs=TRUE,
+      caption = "Summary Statistics of Boston Housing Data")  # Table 2
+```
+
+
+In Tables 1 and 2, it is seen that the variance of **tax** and **b** features is very high. **age**, **ptratio**,**b** are negative(left) skewed. The means of the **rm** and **medv** variables are in the middle of their minimum and maximum values, and their medians are close to their mean, these features may have a normally distributed. Graphs can used to better examine the distribution of features.
+
+\newpage
+
+### Histograms of Boston Housing
+
+```{r fig1,message=FALSE,fig.width=7,fig.height=6,fig.cap="\\label{fig:fig1}Histograms of Boston Housing - Numeric Features"}
+BostonHousing %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram() +
+    theme_minimal()
+```
+
+
+
+\newpage
+
+### Box Plots of Boston Housing 
+
+```{r fig2,  fig.width=7,fig.height=6,fig.cap="\\label{fig:fig2}Box Plots of Boston Housing - Numeric Features"}
+
+BostonHousing %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(y=value)) +
+    facet_wrap(~ key,scales="free") +
+    geom_boxplot() +
+    theme_minimal()
+```
+
+**b**,**crim**, **medv**,**rm**, **lstat** have too many outliers, **zn**,**b**,**crim** highly skewed. 
+
+\newpage
+
+### Barplot of Boston Housing
+
+```{r fig3,  fig.width=4,fig.height=2,fig.cap="\\label{fig:fig3}Barplot of Boston Housing - chas"}
+ggplot(data=BostonHousing, aes(x=chas)) + 
+    geom_bar() +
+    geom_text(aes(label = scales::percent(..prop..), group = 1),
+              fontface = "bold",colour = "#CE2929", size = 5,stat= "count") +
+    theme_minimal()
+```
+
+In Boston Housing data set, only 7% house close to Charles River. 
+
+\newpage
+
+### Examining Relationship Between Target and Features
+
+#### Correalation Plot\newline
+
+Correlation plot can use for examining linear relationship in the data.
+
+```{r,fig.cap="\\label{fig:fig4}Correlation Plots of Boston Housing - Numeric Features"}
+M <-cor(BostonHousing %>% select(-chas))
+corrplot(M, type="upper", order="hclust",
+         col=brewer.pal(n=8, name="RdYlBu"))
+```
+Some features have linear relationship like **nox** and **dis**,**rad** and **tax**, multicollinearity problem can be seen when modelling.
+
+\newpage
+
+#### Scatter Plots\newline
+
+```{r message=FALSE, warning=FALSE,fig.cap="\\label{fig:fig5}Scatter Plots of Boston Housing - Numeric Features"}
+BostonHousing %>%
+  select(-chas) %>%
+  gather(key, val, -medv) %>%
+  ggplot(aes(x = val, y = medv)) +
+  geom_point(alpha=0.1) +
+  stat_smooth(formula = y ~ x,method = "loess",size = 1, se = TRUE, col = "red") +
+  stat_smooth(formula = y ~ x,method = "lm",size = 1, se = TRUE, col = "blue") +
+  facet_wrap(~key, scales = "free") +
+  theme_minimal() +
+  ggtitle("Scatter Plots of Target(medv) ~ Features") +
+  stat_cor(aes(label = ..rr.label..), color = "red",
+           geom = "label",size=2,hjust =0.01, vjust = 0.6)
+```
+Red lines shows non-linear smooth ,blue lines shows linear smooth between features and target.
+The feature **lstat** seems to be the most contributing feature, as expected, where income is low, house prices are cheap, the relationship between **lstat** and **medv** variables is non-linear. There seems to be a decrease in house prices as the crime rate increases. While the distance to employment centers is below 2.5, a rapid increase is seen in house prices as the distance increases. There appears to be a weak negative relationship between the **indus** variable and the **medv**. There is a positive relationship between **rm** and **medv**, it seems that as the number of rooms in the house increases, the price of the house increases. **pratio** and **medv** has negative relationship, pupil-teacher income may be considered low. There is a weak negative relationship between the **age** of the building and its price **medv**. It can be thought that the old buildings were restored and used.
+
